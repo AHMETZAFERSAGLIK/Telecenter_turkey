@@ -1,0 +1,76 @@
+const { OpenAI } = require('openai');
+
+exports.handler = async function(context, event, callback) {
+    const VoiceResponse = require('twilio').twiml.VoiceResponse;
+
+    const openai = new OpenAI({
+         apiKey: 'API-KEY', // Replace with your actual OpenAI API key
+    });
+
+    const userInput = event.SpeechResult || "Üzgünüm, sizi anlayamadım.";
+
+    // Initialize or continue conversation history
+    const conversationHistory = event.conversationHistory
+        ? JSON.parse(event.conversationHistory) // Read history from the event
+        : [
+            {
+                role: "system",
+                content: `
+                Türkiye'deki Doğum Sonrası Yanılgıları Ele Almak İçin Kanıta Dayalı Sağlık Çözümleriyle Yapay Zeka Destekli Bir Telecentersin.
+                Kibar bir turk saglik personeli gibi davran. Geleneksel yapilan onlemek ve anne ve yeni dogan sagligini korumak icin arayan insanlarla konus.
+                Cevaplarin kisa olsun en fazla 40 karakter, max 3 cumle kur.Baska sorum yok, gorusuruz veya bay bay gibi sohbetin bittigini soylerse, 'tekrar bekleriz' de.
+                `,
+            },
+        ];
+
+    // Add user input to conversation history
+    conversationHistory.push({ role: "user", content: userInput });
+
+    try {
+        const gptResponse = await openai.chat.completions.create({
+            model: "gpt-3.5-turbo", // Use GPT-3.5-turbo for faster Turkish responses
+            messages: conversationHistory,
+        });
+
+        const aiResponse = gptResponse.choices[0].message.content;
+
+        // Push the AI response into conversation history
+        conversationHistory.push({ role: "assistant", content: aiResponse });
+
+        const twiml = new VoiceResponse();
+
+        // Check if the AI response contains the phrase "arama bitti" or similar to end the call
+        if (aiResponse.toLowerCase().includes("tekrar bekleriz")) {
+            // If the phrase is found, hang up the call
+            twiml.hangup();
+        } else {
+            // Otherwise, continue with the conversation
+            twiml.say(aiResponse, { voice: 'Google.tr-TR-Standard-A', language: 'tr-TR' });
+
+            const gather = twiml.gather({
+                input: 'speech',
+                speechTimeout: 'auto',
+                action: '/process-speech', // Re-trigger this function
+                method: 'POST',
+                language: 'tr-TR', // Gather input in Turkish
+            });
+
+            //gather.say("Başka bir sorunuz varsa lütfen söyleyin.", { voice: 'Google.tr-TR-Standard-A', language: 'tr-TR' });
+
+            // Update the conversation history in the URL for the next request
+            const redirectUrl = `/process-speech?conversationHistory=${encodeURIComponent(JSON.stringify(conversationHistory))}`;
+
+            twiml.redirect({
+                method: 'POST',
+            }, redirectUrl);
+        }
+
+        callback(null, twiml);
+    } catch (error) {
+        console.error("Error with OpenAI API:", error);
+
+        const twiml = new VoiceResponse();
+        twiml.say("Üzgünüm, isteğinizi işlemekle ilgili bir sorun yaşadım. Lütfen daha sonra tekrar deneyin.", { voice: 'Filiz', language: 'tr-TR' });
+        callback(null, twiml);
+    }
+}
