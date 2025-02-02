@@ -1,0 +1,18 @@
+// retry-speech.js
+exports.handler = function(context, event, callback) {
+    const VoiceResponse = require('twilio').twiml.VoiceResponse;
+
+    const twiml = new VoiceResponse();
+    twiml.say({
+    voice: 'Google.tr-TR-Standard-C',
+    language: 'tr-TR'
+},"Tam duyamadim,tekrar soylermisiniz?");
+    twiml.gather({
+        input: 'speech',
+        action: '/process-speech',  // Retry the process to handle speech again
+        method: 'POST',
+        language: 'tr-TR'
+    });
+
+    callback(null, twiml);
+};
