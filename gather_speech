@@ -1,0 +1,24 @@
+exports.handler = async function(context, event, callback) {
+    const VoiceResponse = require('twilio').twiml.VoiceResponse;
+
+    const twiml = new VoiceResponse();
+
+    // Step 1: Gather speech input in Turkish
+    const gather = twiml.gather({
+        input: 'speech', // Expecting speech input
+        speechTimeout: 'auto', // Automatically stop listening when the user stops speaking
+        action: '/process-speech', // Endpoint for processing speech
+        method: 'POST',
+        language: 'tr-TR', // Turkish language for recognition
+        hints: 'doğum sonrası, anne sütü, bebek bakımı, depresyon, geleneksel yöntemler, modern tıp', // Recognition hints
+    });
+
+    // Prompt the user in Turkish
+    gather.say("Merhaba! Ben, yeni doğan danışmanınızım. Öncelikle bebeğiniz hayırlı olsun, Allah bağışlasın. Sorunuz varsa, lütfen sorun", { voice: 'Google.tr-TR-Standard-C',language: 'tr-TR' });
+
+    // Fallback if no speech is detected
+    twiml.redirect('/retry-speech'); // Retry route
+
+    // Return the Twilio response
+    callback(null, twiml);
+};
